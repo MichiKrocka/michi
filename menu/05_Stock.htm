@@ -1,0 +1,415 @@
+<style type="text/css">
+<!--
+#id_Stock {
+  width:100%;
+  height:auto;
+  overflow:auto;
+}
+#id_Stock .mk-content-right,
+#id_Stock .mk-search,
+#id_Stock .mk-header {
+  border:0;
+}
+#id_Stock .mk-footer {
+  border-right-width:0;
+  border-bottom-width:0;
+}
+#id_Stock_Dividend {
+  overflow-y: scroll;
+  overflow-x: hidden;
+  height: 50px;
+}
+#id_Stock_Dividend span:nth-child(2) {
+  display:inline-block;
+  text-align:right;
+  width:5em;
+}
+.dialog{
+  width:100%;
+}
+.dialog input[type=text],.dialog select {
+  width:100%;
+}
+-->
+</style>
+<script>
+jQuery(function($){
+  // -------------------------------------------------------------------
+  var $T,
+      slfMenuFile = oUser.menu,
+      surenames = {},
+      eEdit = null,
+      xEdit = false;
+  // -------------------------------------------------------------------
+  make();
+  // -------------------------------------------------------------------
+  function selectMenu(ui){
+    var oldMenuFile  = $(ui.oldMenu).data("menu"),
+        newMenuFile  = $(ui.newMenu).data("menu");
+
+    if(DEBUG > 0 && newMenuFile != slfMenuFile){
+      saveOption();
+      var div_menu = $("#id_Content>div").filter('[data-menu="'+oldMenuFile+'"]');
+      $.Topic("selectMenu").unsubscribe(selectMenu);
+      $.Topic("logout").unsubscribe(saveOption);
+      if(typeof $T != "undefined")
+        $T.tables("destroy");
+      div_menu.detach();
+      return
+    }
+
+    if(newMenuFile == slfMenuFile){
+      if(typeof $T != "undefined"){
+        $T
+        .tables("refresh")
+        .focus();
+      }
+    } else if(oldMenuFile == slfMenuFile){
+      saveOption();
+      $.Topic("logout").unsubscribe(saveOption);
+    }
+  }
+  // -------------------------------------------------------------------
+  function saveOption(){
+    $T.tables("saveOption");
+  }
+  // -------------------------------------------------------------------
+  function make(){
+    $.Topic("selectMenu").subscribe(selectMenu);
+    $.Topic("logout").subscribe(saveOption);
+    $T = $("#id_Stock").tables({
+      colModel: [{
+        indx:   "x",
+        title:  "X",
+        show:   true,
+        search: true,
+        align:  "center",
+        width:  "1em"
+      },{
+        indx:   "name",
+        title:  "Name",
+        show:   true,
+        search: true,
+        align:  "left",
+        width:  "15em"
+      },{
+        indx:   "WKN",
+        title:  "WKN",
+        show:   true,
+        search: true,
+        align:  "left",
+        width:  "4.5em"
+      },{
+        indx:   "quantity",
+        title:  "Quantity",
+        show:   true,
+        search: true,
+        align:  "right",
+        width:  "3em"
+      },{
+        indx:   "acquisition",
+        title:  "Acquisition",
+        show:   true,
+        search: true,
+        align:  "center",
+        width:  "6em"
+      },{
+        indx:   'printf("%%.2f", acq_price)',
+        title:  "Price",
+        show:   true,
+        search: true,
+        align:  "right",
+        width:  "4.5em"
+      },{
+        indx:   'printf("%%.2f",CASE WHEN json_valid(dividend) THEN (SELECT SUM(json_extract(json_each.value,"$.v")) FROM json_each(wkn.dividend)) ELSE 0.0 END)',
+        title:  "Dividend",
+        show:   true,
+        search: true,
+        align:  "right",
+        width:  "5em"
+      },{
+        indx:   "note",
+        title:  "Note",
+        show:   false,
+        search: true,
+        align:  "left",
+        width:  "15em"
+      }],
+      dataModel: $.extend({}, sqliteDataModel),
+      alignTitle: "center",
+      Rows:      10,
+      Left:      1,
+      Header:    null,
+      Footer:    null,
+      ID:        "id",
+      orderBy:   "name",
+      orderType: "ASC",
+
+      User:         oUser.dbuser, // dbuser
+      Sign:         SIGN_WKN, // navig identification
+
+      SQL_SysBase:  SQL_SYS_BASE,
+      SQL_SysTable: SQL_SYS_TABLE,
+      SQL_Base:     SQL_BASE_DIR + "michi.sqlite",
+      SQL_Table:    "wkn",
+      SQL_Query:
+        "SELECT "+
+          "*"+
+        "FROM wkn",
+      // functions + events
+      i18n:         __,
+      refreshRec:   refreshRec,
+      clickButton: function(ev, ui){
+        switch(ui.choice){
+          case "INS":
+            dividend_edit(null, eEdit, $("#id_Stock_Dividend"));
+            break;
+          default:
+            console.log(ui.choice);
+        }
+      },
+      beforeEdit: function(ev, ui){
+        xEdit = true;
+        $("button", ui.form).button("enable");
+      },
+      afterEdit: function(ev, ui){
+      },
+      closeEdit: function(ev, ui){
+        $("button", ui.form).button("disable");
+        xEdit = false;
+        dividend_make(eEdit, $("#id_Stock_Dividend"));
+        if(ui.cancel)
+          return;
+      },
+      build: goTo
+    });
+    // -----------------------------------------------------------------
+    eEdit = $("input[name=dividend]", "#id_Stock");
+    $("#id_Stock_Dividend")
+    .height($("#id_Stock_Dividend").parent().height())
+    .menu({
+      select: function(ev, ui){
+        if(xEdit){
+          dividend_edit($(ui.item[0]).index(), eEdit, $(this));
+        }
+      }
+    });
+    // -----------------------------------------------------------------
+    // event handler for refresh record
+    function refreshRec(ev, ui){
+      if(ui.REC.length == 0){
+        $("#id_Stock_Dividend").text("");
+        return;
+      }
+      dividend_make(eEdit, $("#id_Stock_Dividend"));
+    }
+  }
+  // -------------------------------------------------------------------
+  function goTo(){
+    change_all_lang($T);
+    setTimeout(function(){
+      $("#id_Stock_Dividend")
+      .height($("#id_Stock_Dividend").parent().height())
+      .menu("refresh");
+      $T.focus();
+    }, 600);
+  }
+  // -------------------------------------------------------------------
+});
+// #####################################################################
+function dividend_make(el, $menu){
+  var O = el.val(),
+      M = [];
+  O = O ==  "" ? [] : $.parseJSON(O);
+  O.sort(function(a, b){
+    return b.d > a.d;
+  });
+  for(var c in O){
+    M.push(
+    $.sprintf(
+      '<li><div><span>%s</span><span>%.2f</span></div></li>',
+      O[c].d, O[c].v
+    ));
+  }
+  $menu
+  .html(M.join(""))
+  .menu("refresh");
+}
+// #####################################################################
+function dividend_edit(ix, el, $menu){
+  var O = el.val(),
+      O = O == "" ? [] : $.parseJSON(O);
+  O.sort(function(a, b){
+    return b.d > a.d;
+  });
+  var C = ix === null ? {p:"TEL",v:"",t:"",s:""} : O[ix];
+      S =  [];
+  for(var x in CONTACT_ICON)
+    S.push('<option class="'+CONTACT_ICON[x]+'">'+x+'</option>');
+  $dialog = $("<div>");
+  $dialog
+  .html($.sprintf(
+    '<table class="dialog">'+
+      '<tr>'+
+        '<td>%s</td>'+
+        '<td><input name="d" value="%s" class="datepicker ui-widget-content" type="text"></td>'+
+      '</tr>'+
+      '<tr>'+
+        '<td>%s</td>'+
+        '<td><input name="v" value="%.2f" class="ui-widget-content" type="text"></td>'+
+      '</tr>'+
+    '</table>',
+    _("Date"), C.d,
+    _("Value"), C.v
+  ))
+  .dialog({
+    width:  "auto",
+    height: "auto",
+    title:  _(ix === null ? "Insert" : "Edit"),
+    modal:  true,
+    closeOnEscape: true,
+    resizable: false,
+    buttons: [{
+      text: _("Remove"),
+      disabled: ix === null,
+      click: function(){
+        O.splice(ix, 1);
+        el.val(JSON.stringify(O));
+        dividend_make(el, $menu);
+        $(this).dialog("close");
+      }
+    },{
+      text: _("OK"),
+      class: "c_OK",
+      click: function(){
+        var o = {};
+        $("input,select", $dialog).serializeArray().map(function(x){
+          o[x.name] = x.value;
+        });
+        if(o.d == ""){
+          $("input[name=d]").addClass("ui-state-error").select().focus();
+          return;
+        }
+        if(o.v == "")
+          o.v = 0.0;
+        if(ix === null){
+          O.push(o);
+        } else {
+          O[ix] = o;
+        }
+        el.val(JSON.stringify(O));
+        dividend_make(el, $menu);
+        $(this).dialog("close");
+      }
+    },{
+      text: _("Cancel"),
+      click: function(){
+        $(this).dialog("close");
+      }
+    }],
+    open: function(ev, ui){
+      $("select", this)
+      .val(C.p)
+      .selectmenu();
+      $("input.datepicker", this).datepicker({
+        dateFormat:"yy-mm-dd"
+      });
+      setTimeout(function(){
+        $("input", $dialog).eq(0).select().focus();
+      }, 100);
+    },
+    close: function(ev, ui ){
+      $(this).dialog("destroy");
+    }
+  })
+  .delegate("input[type=text]", "keydown", function(ev){
+    if(ev.keyCode == $.ui.keyCode.ENTER){
+      if(ev.ctrlKey){
+        var OK = $("button.c_OK", $dialog.dialog("widget"));
+        OK.click();
+      }
+      return false;
+    }
+  });
+}
+// #####################################################################
+</script>
+<div id="id_Stock" style="display:none" class="ui-corner-top">
+  <form id="id_Stock_Form" style="display:block" class="mk-tables-form">
+    <input type="submit" tabindex="-1" style="position:absolute; top:-1000px;display:none">
+    <input name="dividend" class="upd" type="hidden">
+    <table id="id_Stock_Table" tabindex="2">
+      <tbody>
+        <tr>
+          <td class="ui-widget-content ui-state-disabled" style="width:1%">
+            <input name="id" style="text-align:center;background:transparent;width:4em" disabled type="text">
+          </td>
+          <td class="ui-widget-header lang" style="width:1%">Name</td>
+          <td class="ui-widget-content" colspan="2">
+            <input name="name" tabindex="3" class="upd" type="text">
+          </td>
+          <td class="ui-widget-header" style="width:1%">X</td>
+          <td class="ui-widget-content" style="text-align:center;width:1%">
+            <input name="x" tabindex="11" data-enum='["o","x"]' type="button" class="enum admin-dis upd" style="background-color:transparent;" data-default="o">
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <table id="id_Stock_Table2" style="width:100%">
+      <tbody>
+        <tr>
+          <td class="ui-widget-header lang" style="width:1%">WKN</td>
+          <td class="ui-widget-content" style="width:1%">
+            <input name="WKN" tabindex="4" class="upd" type="text" style="width:7em">
+          </td>
+          <td class="ui-widget-header lang" style="text-align:center;width:30%">Note</td>
+          <td class="ui-widget-header">
+            <span class="lang" style="float:left">Dividend</span>
+            <span style="display:inline-block;float:right;font-size:0.6em">
+              <button title="Insert" class="lang-title" data-choice="INS" disabled>
+                <i class="fa fa-plus"></i>
+              </button>
+            </span>
+          </td>
+        </tr>
+        <tr>
+          <td class="ui-widget-header lang">Quantity</td>
+          <td class="ui-widget-content">
+            <input name="quantity" tabindex="5" class="upd" type="text" style="text-align:right">
+          </td>
+          <td class="ui-widget-content" style="padding:0" rowspan="7">
+            <textarea name="note" tabindex="10" class="upd"></textarea>
+          </td>
+          <td class="ui-widget-content" style="vertical-align:top" rowspan="7" colspan="2">
+            <ul id="id_Stock_Dividend" style="border:0"></ul>
+          </td>
+        </tr>
+        <tr>
+          <td class="ui-widget-header lang">Acquisition</td>
+          <td class="ui-widget-content">
+            <input name="acquisition" tabindex="6" data-default="" class="datepicker upd" style="text-align:center" type="text">
+          </td>
+        </tr>
+        <tr>
+          <td class="ui-widget-header lang">Price</td>
+          <td class="ui-widget-content">
+            <input name="acq_price" tabindex="7" class="upd" type="text" style="text-align:right">
+          </td>
+        </tr>
+        <tr>
+          <td class="ui-widget-header lang">Sale</td>
+          <td class="ui-widget-content">
+            <input name="sale" tabindex="8" data-default="" class="datepicker upd" style="text-align:center" type="text">
+          </td>
+        </tr>
+        <tr>
+          <td class="ui-widget-header lang">Price</td>
+          <td class="ui-widget-content">
+            <input name="sale_price" tabindex="9" class="upd" type="text" style="text-align:right">
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </form>
+</div>

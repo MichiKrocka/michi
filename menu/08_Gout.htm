@@ -1,0 +1,187 @@
+<style type="text/css">
+<!--
+#id_Gout {
+  width:100%;
+  height:auto;
+  overflow:auto;
+}
+#id_Gout .mk-content-right,
+#id_Gout .mk-search,
+#id_Gout .mk-header {
+  border:0;
+}
+#id_Gout .mk-footer {
+  border-right-width:0;
+  border-bottom-width:0;
+}
+-->
+</style>
+<script>
+jQuery(function($){
+  // -------------------------------------------------------------------
+  var $T,
+      slfMenuFile = oUser.menu;
+  // -------------------------------------------------------------------
+  make();
+  // -------------------------------------------------------------------
+  function selectMenu(ui){
+    var oldMenuFile  = $(ui.oldMenu).data("menu"),
+        newMenuFile  = $(ui.newMenu).data("menu");
+
+    if(DEBUG > 0 && newMenuFile != slfMenuFile){
+      saveOption();
+      var div_menu = $("#id_Content>div").filter('[data-menu="'+oldMenuFile+'"]');
+      $.Topic("selectMenu").unsubscribe(selectMenu);
+      $.Topic("logout").unsubscribe(saveOption);
+      if(typeof $T != "undefined")
+        $T.tables("destroy");
+      div_menu.detach();
+      return
+    }
+
+    if(newMenuFile == slfMenuFile){
+      if(typeof $T != "undefined"){
+        $T
+        .tables("refresh")
+        .focus();
+      }
+    } else if(oldMenuFile == slfMenuFile){
+      saveOption();
+      $.Topic("logout").unsubscribe(saveOption);
+    }
+  }
+  // -------------------------------------------------------------------
+  function saveOption(){
+    $T.tables("saveOption");
+  }
+  // -------------------------------------------------------------------
+  function make(){
+    $.Topic("selectMenu").subscribe(selectMenu);
+    $.Topic("logout").subscribe(saveOption);
+    $T = $("#id_Gout").tables({
+      colModel: [{
+        indx:   "S",
+        title:  "S",
+        show:   true,
+        search: true,
+        align:  "center",
+        width:  "1em"
+      },{
+        indx:   "N",
+        title:  "N",
+        show:   true,
+        search: true,
+        align:  "center",
+        width:  "1em"
+      },{
+        indx:   "datum",
+        title:  "Datum",
+        show:   true,
+        search: true,
+        align:  "left",
+        width:  "6em"
+      },{
+        indx:   "txt",
+        title:  "Text",
+        show:   true,
+        search: true,
+        align:  "left",
+        width:  "10em"
+      },{
+        indx:   "note",
+        title:  "Note",
+        show:   true,
+        search: true,
+        align:  "left",
+        width:  "30em"
+      }],
+      dataModel: $.extend({}, sqliteDataModel),
+      alignTitle: "center",
+      Rows:      10,
+      Left:      1,
+      Header:    null,
+      Footer:    null,
+      ID:        "id",
+      orderBy:   "datum",
+      orderType: "DESC",
+
+      User:         oUser.dbuser, // dbuser
+      Sign:         SIGN_GOUT, // navig identification
+
+      SQL_SysBase:  SQL_SYS_BASE,
+      SQL_SysTable: SQL_SYS_TABLE,
+      SQL_Base:     SQL_BASE_DIR + "michi.sqlite",
+      SQL_Table:    "gout",
+      SQL_Query:
+        "SELECT "+
+          "*"+
+        "FROM gout",
+      // functions + events
+      i18n:         __,
+      beforeEdit: function(ev, ui){
+        $("button", ui.form).button("enable");
+      },
+      afterEdit: function(ev, ui){
+      },
+      closeEdit: function(ev, ui){
+        $("button", ui.form).button("disable");
+      },
+      build: goTo
+    });
+    // -----------------------------------------------------------------
+    // event handler for refresh record
+    function refreshRec(ev, ui){
+    }
+    // -----------------------------------------------------------------
+    function goTo(){
+      change_all_lang($T);
+      setTimeout(function(){
+        $T.focus();
+      }, 600);
+    }
+  }
+  // -------------------------------------------------------------------
+});
+</script>
+<div id="id_Gout" style="display:none" class="ui-corner-top">
+  <form id="id_Gout_Form" style="display:block" class="mk-tables-form">
+    <input type="submit" tabindex="-1" style="position:absolute; top:-1000px;display:none">
+    <table id="id_Gout_Table" tabindex="2">
+      <tbody>
+        <tr>
+          <td class="ui-widget-content ui-state-disabled" style="width:1%">
+            <input name="id" style="text-align:center;background:transparent;width:4em" disabled type="text">
+          </td>
+          <td class="ui-widget-header lang" colspan="2" style="text-align:right">Note</td>
+        </tr>
+        <tr>
+          <td class="ui-widget-header lang">Datum</td>
+          <td class="ui-widget-content" style="width:8em">
+            <input name="datum" tabindex="3" class="datepicker upd" style="text-align:center" type="text">
+          </td>
+          <td class="ui-widget-content" style="padding:0" rowspan="4">
+            <textarea name="note" tabindex="7" class="upd" style=""></textarea>
+          </td>
+        </tr>
+        <tr>
+          <td class="ui-widget-header">S</td>
+          <td class="ui-widget-content">
+            <input name="S" tabindex="4" data-enum='["R","L",""]' type="button" class="enum admin-dis upd" style="background-color:transparent;" data-default="o">
+          </td>
+        </tr>
+        <tr>
+          <td class="ui-widget-header">N</td>
+          <td class="ui-widget-content">
+            <input name="N" tabindex="5" data-enum='["0","1","2","3"]' type="button" class="enum admin-dis upd" style="background-color:transparent;" data-default="o">
+          </td>
+        </tr>
+        <tr>
+          <td class="ui-widget-header">Text</td>
+          <td class="ui-widget-content">
+            <input name="txt" tabindex="5" class="upd" type="text">
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </form>
+</div>

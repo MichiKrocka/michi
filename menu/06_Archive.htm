@@ -1,0 +1,156 @@
+<style type="text/css">
+<!--
+#id_Archive {
+  width:100%;
+  height:auto;
+  overflow:auto;
+}
+#id_Archive .mk-content-right,
+#id_Archive .mk-search,
+#id_Archive .mk-header {
+  border:0;
+}
+#id_Archive .mk-footer {
+  border-right-width:0;
+  border-bottom-width:0;
+}
+-->
+</style>
+<script>
+jQuery(function($){
+  // -------------------------------------------------------------------
+  var $T,
+      slfMenuFile = oUser.menu;
+  // -------------------------------------------------------------------
+  make();
+  // -------------------------------------------------------------------
+  function selectMenu(ui){
+    var oldMenuFile  = $(ui.oldMenu).data("menu"),
+        newMenuFile  = $(ui.newMenu).data("menu");
+
+    if(DEBUG > 0 && newMenuFile != slfMenuFile){
+      saveOption();
+      var div_menu = $("#id_Content>div").filter('[data-menu="'+oldMenuFile+'"]');
+      $.Topic("selectMenu").unsubscribe(selectMenu);
+      $.Topic("logout").unsubscribe(saveOption);
+      if(typeof $T != "undefined")
+        $T.tables("destroy");
+      div_menu.detach();
+      return
+    }
+
+    if(newMenuFile == slfMenuFile){
+      if(typeof $T != "undefined"){
+        $T
+        .tables("refresh")
+        .focus();
+      }
+    } else if(oldMenuFile == slfMenuFile){
+      saveOption();
+      $.Topic("logout").unsubscribe(saveOption);
+    }
+  }
+  // -------------------------------------------------------------------
+  function saveOption(){
+    $T.tables("saveOption");
+  }
+  // -------------------------------------------------------------------
+  function make(){
+    $.Topic("selectMenu").subscribe(selectMenu);
+    $.Topic("logout").subscribe(saveOption);
+    $T = $("#id_Archive").tables({
+      colModel: [{
+        indx:   "name",
+        title:  "Name",
+        show:   true,
+        search: true,
+        align:  "left",
+        width:  "15em"
+      },{
+        indx:   "txt",
+        title:  "Text",
+        show:   true,
+        search: true,
+        align:  "left",
+        width:  "30em"
+      }],
+      dataModel: $.extend({}, sqliteDataModel),
+      alignTitle: "center",
+      Rows:      10,
+      Left:      1,
+      Header:    null,
+      Footer:    null,
+      ID:        "id",
+      orderBy:   "name",
+      orderType: "ASC",
+
+      User:         oUser.dbuser, // dbuser
+      Sign:         SIGN_ARCHIVE, // navig identification
+
+      SQL_SysBase:  SQL_SYS_BASE,
+      SQL_SysTable: SQL_SYS_TABLE,
+      SQL_Base:     SQL_BASE_DIR + "michi.sqlite",
+      SQL_Table:    "archive",
+      SQL_Query:
+        "SELECT "+
+          "*"+
+        "FROM archive",
+      // functions + events
+      i18n:         __,
+      clickButton: function(ev, ui){
+        switch(ui.choice){
+          case "INS":
+            break;
+          default:
+            console.log(ui.choice);
+        }
+      },
+      beforeEdit: function(ev, ui){
+        $("button", ui.form).button("enable");
+      },
+      afterEdit: function(ev, ui){
+      },
+      closeEdit: function(ev, ui){
+        $("button", ui.form).button("disable");
+      },
+      build: goTo
+    });
+    // -----------------------------------------------------------------
+    // event handler for refresh record
+    function refreshRec(ev, ui){
+    }
+    // -----------------------------------------------------------------
+    function goTo(){
+      change_all_lang($T);
+      setTimeout(function(){
+        $T.focus();
+      }, 600);
+    }
+  }
+  // -------------------------------------------------------------------
+});
+</script>
+<div id="id_Archive" style="display:none" class="ui-corner-top">
+  <form id="id_Archive_Form" style="display:block" class="mk-tables-form">
+    <input type="submit" tabindex="-1" style="position:absolute; top:-1000px;display:none">
+    <table id="id_Archive_Table" tabindex="2">
+      <tbody>
+        <tr>
+          <td class="ui-widget-content ui-state-disabled" style="width:1%">
+            <input name="id" style="text-align:center;background:transparent;width:4em" disabled type="text">
+          </td>
+          <td class="ui-widget-header lang" style="width:1%">Name</td>
+          <td class="ui-widget-content">
+            <input name="name" tabindex="3" class="upd" type="text">
+          </td>
+          <td class="ui-widget-header lang" style="width:1%">Text</td>
+        </tr>
+        <tr>
+          <td class="ui-widget-content" style="padding:0;height:20em" colspan="4">
+            <textarea name="txt" tabindex="4" class="upd" style=""></textarea>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </form>
+</div>
