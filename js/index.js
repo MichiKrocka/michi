@@ -10,7 +10,7 @@ var DIR_MENU      = "menu",            // directory with menus
     DIR_THEMES    = "themes",          // directory with themes
     COOKIE_THEMES = "jquery-ui-theme", // cookies id
 
-    SQL_BASE_DIR  = "database/michi_sql/",
+    SQL_BASE_DIR  = "data/michi_sql/",
     SQL_SYS_BASE  = SQL_BASE_DIR + "michi.sqlite",
 
     SQL_SYS_TABLE = "sys",
